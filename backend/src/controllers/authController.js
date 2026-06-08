@@ -24,7 +24,8 @@ export const loginWorkspace = async (req, res) => {
 
     const passwordMatch = await bcrypt.compare(password, user.password_hash);
     if (!passwordMatch) {
-      await logSecurityEvent(null, 'LOGIN_FAILED', null, req.ip, `ID: ${employee_id} | ${req.headers['user-agent']}`);
+      // FIX: Pass the verified user.id instead of null so PostgreSQL doesn't choke on constraints
+      await logSecurityEvent(user.id, 'LOGIN_FAILED', null, req.ip, `ID: ${employee_id} | ${req.headers['user-agent'] || 'Unknown'}`);
       return res.status(401).json({ error: 'Authentication verification failure.' });
     }
 
@@ -42,6 +43,8 @@ export const loginWorkspace = async (req, res) => {
 
     return res.json({ token, user: { id: user.id, name: user.full_name, role: user.role, department: user.department } });
   } catch (err) {
+    // Technical debugging help: always console.error the raw error log so you can see it in terminal!
+    console.error("🔥 Detailed Login Crash:", err);
     return res.status(500).json({ error: 'Internal system fault during authentication cycle.' });
   }
 };
