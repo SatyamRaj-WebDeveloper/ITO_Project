@@ -65,3 +65,44 @@ export const provisionNewEmployee = async (req, res) => {
     return res.status(500).json({ error: 'Internal system fault during workforce account allocation.' });
   }
 };
+
+export const modifyUserAccessStatus = async (req, res) => {
+  const { userId } = req.params;
+  const { action_type } = req.body; // Expects 'LOCK' or 'UNLOCK'
+  const adminId = req.user.id;
+
+  try {
+    if (req.user.role !== 'super_admin') {
+      return res.status(403).json({ error: 'Access Denied. Root clearance mandatory.' });
+    }
+
+    const setActiveStatus = action_type === 'UNLOCK';
+    
+    const result = await pool.query(
+      'UPDATE users SET is_active = $1 WHERE id = $2 RETURNING id, employee_id, full_name, is_active',
+      [setActiveStatus, userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Employee account target not found.' });
+    }
+
+    // Log administrative intervention footprint
+    await logSecurityEvent(
+      adminId,
+      setActiveStatus ? 'LOGIN_SUCCESS' : 'UNAUTHORIZED_VIEW',
+      userId,
+      req.ip,
+      `Administrative override executed: Permanently ${action_type}ED employee profile ${result.rows[0].employee_id}`
+    );
+
+    return res.json({
+      message: `Employee account status successfully updated to ${action_type}ED.`,
+      user: result.rows[0]
+    });
+
+  } catch (err) {
+    console.error("🔥 Access Matrix Modification Failure:", err.message);
+    return res.status(500).json({ error: 'Internal server database override fault.' });
+  }
+};
