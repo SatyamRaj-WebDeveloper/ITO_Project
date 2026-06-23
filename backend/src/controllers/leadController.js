@@ -10,15 +10,31 @@ export const ingestLeadStream = async (req, res) => {
     if (quantity_required >= 1000 && company_name && mobile_raw) priority = 'Hot';
     else if (!mobile_raw || !customer_name) priority = 'Incomplete';
 
+    // ✅ FIXED: Enforce a strict fallback rule to make sure 'source' always matches 
+    // your PostgreSQL check constraint thresholds ('Website Enquiry').
+    const cleanSource = (source && (source === 'Website Enquiry' || source === 'AI Agent')) 
+      ? source 
+      : 'Website Enquiry';
+
     const generatedLead = await createLeadEntry({
-      source, customer_name, company_name, mobile_raw, email_raw,
-      product_category, quantity_required, destination_city,
-      payment_terms, delivery_terms, chat_summary, priority
+      source: cleanSource, 
+      customer_name, 
+      company_name, 
+      mobile_raw, 
+      email_raw,
+      product_category, 
+      quantity_required, 
+      destination_city,
+      payment_terms, 
+      delivery_terms, 
+      chat_summary, 
+      priority
     });
 
     await logSecurityEvent(null, 'AI_LEAD_CREATED', generatedLead.id, req.ip, `Lead initialized via pipeline.`);
     return res.status(201).json({ message: 'Lead ingestion complete.', data: generatedLead });
   } catch (err) {
+    console.error("🔥 Stream Ingest Error:", err.message);
     return res.status(500).json({ error: 'Processing error during lead streaming transaction.' });
   }
 };
@@ -35,8 +51,6 @@ export const getWorkspaceLeads = async (req, res) => {
   }
 };
 
-
-
 export const updateLeadStatus = async (req, res) => {
   const { leadId } = req.params;
   const { status } = req.body; 
@@ -49,13 +63,12 @@ export const updateLeadStatus = async (req, res) => {
       WHERE id = $2 
       RETURNING id, customer_name, product_category, status;
     `;
-    const result = await db.query(updateQuery, [status, leadId]);
+    const result = await pool.query(updateQuery, [status, leadId]); // ✅ FIXED: Changed 'db.query' to your defined 'pool.query' to prevent undefined crashes
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Target customer lead record not found.' });
     }
 
-    // 2. Track the operational action in your audit compliance ledger
     await logSecurityEvent(
       actorId,
       'LEAD_EDITED',
@@ -78,13 +91,10 @@ export const updateLeadStatus = async (req, res) => {
 export const revealSensitiveContact = async (req, res) => {
   const { leadId } = req.params;
   const { field_to_reveal } = req.body; 
-  
-  // Capture explicit actor credentials directly from the verified token middleware
   const currentActorId = req.user.id; 
   const currentActorRole = req.user.role;
 
   try {
-    // 1. Pull current lead context from Neon
     const leadRes = await pool.query('SELECT id, customer_name, mobile_raw, email_raw FROM leads WHERE id = $1', [leadId]);
     if (leadRes.rows.length === 0) {
       return res.status(404).json({ error: 'Target procurement lead record missing.' });
@@ -93,8 +103,6 @@ export const revealSensitiveContact = async (req, res) => {
     const lead = leadRes.rows[0];
     const actionType = field_to_reveal === 'mobile' ? 'MOBILE_REVEAL' : 'EMAIL_REVEAL';
 
-    // 2. SAFEGUARD CRITICAL HOOK: If the actor role is explicitly verified as super_admin,
-    // log it under a separate administrative tracking label and skip employee threshold increments entirely!
     if (currentActorRole === 'super_admin') {
       await logSecurityEvent(
         currentActorId,
@@ -110,7 +118,6 @@ export const revealSensitiveContact = async (req, res) => {
       });
     }
 
-    // 3. For standard workforce entries, proceed with logging and tracking violation limits normally
     await logSecurityEvent(
       currentActorId,
       actionType,
@@ -148,5 +155,56 @@ export const revealSensitiveContact = async (req, res) => {
   } catch (err) {
     console.error("🔥 Forensic Unmask Fault:", err.message);
     return res.status(500).json({ error: 'Data unmask execution drop.' });
+  }
+};
+
+export const publicLeadIngest = async (req, res) => {
+  const {
+    customer_name,
+    company_name,
+    mobile_raw,
+    email_raw,
+    product_category,
+    quantity_required,
+    destination_city,
+    payment_terms,
+    delivery_terms,
+    chat_summary
+  } = req.body;
+
+  try {
+    if (!customer_name || !mobile_raw) {
+      return res.status(400).json({ error: 'Validation Failed. Name and Mobile numbers are mandatory fields.' });
+    }
+    const insertQuery = `
+      INSERT INTO leads (
+        customer_name, company_name, mobile_raw, email_raw, 
+        product_category, quantity_required, destination_city, 
+        payment_terms, delivery_terms, chat_summary, source, priority, status
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'Website Enquiry', 'Warm', 'New Lead')
+      RETURNING id, customer_name;
+    `;
+
+    const result = await pool.query(insertQuery, [
+      customer_name,
+      company_name || 'Individual Operator',
+      mobile_raw,
+      email_raw || 'not-provided@trade.com',
+      product_category || 'stone',
+      parseFloat(quantity_required) || 0,
+      destination_city || 'Not Specified',
+      payment_terms || 'Pending Review',
+      delivery_terms || 'Pending Review',
+      chat_summary || 'Public Web Assistant log trace.'
+    ]);
+
+    return res.status(201).json({
+      message: 'Lead pipeline ingestion complete.',
+      lead: result.rows[0]
+    });
+
+  } catch (error) {
+    console.error("🔥 Public Ingest Database Crash Handler:", error.message);
+    return res.status(500).json({ error: `Database Transaction Fault: ${error.message}` });
   }
 };
