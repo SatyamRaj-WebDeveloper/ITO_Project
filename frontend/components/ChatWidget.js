@@ -72,7 +72,7 @@ export default function ChatWidget() {
         if (rawCat.includes('agro')) normalizedCategory = 'agro';
 
         try {
-          const response = await fetch('http://localhost:5000/api/leads/public-ingest', {
+          const response = await fetch('https://ito-backend-v3di.onrender.com/api/leads/public-ingest', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

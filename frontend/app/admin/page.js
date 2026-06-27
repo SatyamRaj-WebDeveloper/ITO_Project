@@ -63,7 +63,7 @@ export default function AdminCommandCenter() {
     setLoginError('');
 
     try {
-      const response = await fetch('http://localhost:5000/api/auth/login-workspace', {
+      const response = await fetch('https://ito-backend-v3di.onrender.com/api/auth/login-workspace', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(credentials)
@@ -99,7 +99,7 @@ export default function AdminCommandCenter() {
 
     try {
       // 1. Fetch Security Audit Trails Ledger
-      const auditResponse = await fetch('http://localhost:5000/api/security/audit-stream', {
+      const auditResponse = await fetch('https://ito-backend-v3di.onrender.com/api/security/audit-stream', {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${activeToken}`,
@@ -110,7 +110,7 @@ export default function AdminCommandCenter() {
       if (auditResponse.ok) setAuditLogs(auditResult);
 
       // 2. Fetch Global Customer Procurement Requirements Pipeline List
-      const leadsResponse = await fetch('http://localhost:5000/api/leads/workspace-board', {
+      const leadsResponse = await fetch('https://ito-backend-v3di.onrender.com/api/leads/workspace-board', {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${activeToken}`,
@@ -135,7 +135,7 @@ export default function AdminCommandCenter() {
     const token = localStorage.getItem('ito_admin_token');
 
     try {
-      const response = await fetch('http://localhost:5000/api/admin/provision-employee', {
+      const response = await fetch('https://ito-backend-v3di.onrender.com/api/admin/provision-employee', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -380,7 +380,7 @@ export default function AdminCommandCenter() {
 
                                       const token = localStorage.getItem('ito_admin_token');
                                       try {
-                                        const res = await fetch(`http://localhost:5000/api/admin/user-access/${log.actor_id}`, {
+                                        const res = await fetch(`https://ito-backend-v3di.onrender.com/api/admin/user-access/${log.actor_id}`, {
                                           method: 'POST',
                                           headers: {
                                             'Authorization': `Bearer ${token}`,
@@ -411,7 +411,7 @@ export default function AdminCommandCenter() {
 
                                       const token = localStorage.getItem('ito_admin_token');
                                       try {
-                                        const res = await fetch(`http://localhost:5000/api/admin/user-access/${log.actor_id}`, {
+                                        const res = await fetch(`https://ito-backend-v3di.onrender.com/api/admin/user-access/${log.actor_id}`, {
                                           method: 'POST',
                                           headers: {
                                             'Authorization': `Bearer ${token}`,
@@ -513,7 +513,7 @@ export default function AdminCommandCenter() {
                                 const newStatus = e.target.value;
                                 const token = localStorage.getItem('ito_admin_token');
                                 try {
-                                  const res = await fetch(`http://localhost:5000/api/leads/${lead.id}/status`, {
+                                  const res = await fetch(`https://ito-backend-v3di.onrender.com/api/leads/${lead.id}/status`, {
                                     method: 'PATCH',
                                     headers: {
                                       'Authorization': `Bearer ${token}`,

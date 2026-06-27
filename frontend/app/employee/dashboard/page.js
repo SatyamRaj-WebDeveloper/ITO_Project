@@ -30,7 +30,7 @@ export default function EmployeeDashboard() {
   const fetchCRMWorkspaceBoard = async (token) => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:5000/api/leads/workspace-board', {
+      const response = await fetch('https://ito-backend-v3di.onrender.com/api/leads/workspace-board', {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -66,7 +66,7 @@ export default function EmployeeDashboard() {
 
     try {
       // Connected to actual backend endpoint routing architecture
-      const response = await fetch(`http://localhost:5000/api/leads/${leadId}/reveal`, {
+      const response = await fetch(`https://ito-backend-v3di.onrender.com/api/leads/${leadId}/reveal`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
