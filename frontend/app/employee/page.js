@@ -23,28 +23,32 @@ export default function EmployeeLoginPage() {
     e.preventDefault();
     setLoading(true);
     setError('');
-
+  
+const loginPayload = {
+  employee_id: credentials.employee_id || credentials.employeeId || credentials.username,
+  password: credentials.password,
+  device_signature: credentials.device_signature || "DESKTOP-ITO-WORKSTATION-MAIN"
+};
+  
     try {
       const response = await fetch('http://localhost:5000/api/auth/login-workspace', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(credentials)
+        body: JSON.stringify(loginPayload) // ✅ Pass the explicitly mapped payload
       });
-
+  
       const result = await response.json();
-
+  
       if (!response.ok) {
         throw new Error(result.error || 'Authentication denied.');
       }
-
-      // 🧹 SAFEGUARD: Clean up stale admin session contexts to prevent cross-token bugs
+  
       localStorage.removeItem('ito_admin_token');
       localStorage.removeItem('ito_admin_profile');
-
-      // ✅ FIXED: Save explicit workforce token parameters matching dashboard lookup logic
+  
       localStorage.setItem('ito_staff_token', result.token);
       localStorage.setItem('ito_user_profile', JSON.stringify(result.user));
-
+  
       if (result.user.role === 'super_admin') {
         router.push('/admin');
       } else {
@@ -95,7 +99,7 @@ export default function EmployeeLoginPage() {
             <strong className="block text-amber-500 font-bold mb-1 uppercase text-center tracking-wide font-mono text-xs">
               Confidentiality Notice
             </strong>
-            This system is the property of India Trade Overseas[cite: 1]. Unauthorized access, data copying, screenshot sharing, or any misuse of company information is strictly prohibited.
+            This system is the property of India Trade Overseas. Unauthorized access, data copying, screenshot sharing, or any misuse of company information is strictly prohibited.
           </div>
         </div>
       </div>

